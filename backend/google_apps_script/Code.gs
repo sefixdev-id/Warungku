@@ -185,7 +185,7 @@ const ADMIN_ACTIONS = [
   'getAllUsers', 'updateUserStatus', 'addCategory', 'updateCategory', 'deleteCategory',
   'addProduct', 'updateProduct', 'deleteProduct', 'updateStock', 'getAllDebts',
   'addDebt', 'addDebtPayment', 'markDebtAsPaid', 'getAdminDashboard', 'getStockLogs',
-  'addStockLog', 'getLowStockProducts', 'uploadProductImage',
+  'addStockLog', 'getLowStockProducts', 'uploadProductImage', 'testDriveAccess', 'testUploadSmallImage',
   'getAllOrdersForAdmin', 'updateOrderStatus', 'updateOrderPaymentStatus',
 ];
 
@@ -249,6 +249,7 @@ function seedDummyData() {
 function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
   const action = params.action || '';
+  Logger.log('Warungku doGet action=%s hasPayload=%s', action || '(none)', params.payload ? 'yes' : 'no');
   if (action === 'setup') {
     setupDatabase();
     return responseSuccess('Setup database Warungku selesai. Semua sheet dan header sudah dibuat.');
@@ -268,6 +269,11 @@ function doGet(e) {
 
 function doPost(e) {
   try {
+    Logger.log(
+      'Warungku doPost contentType=%s length=%s',
+      e && e.postData ? e.postData.type : '(none)',
+      e && e.postData && e.postData.contents ? e.postData.contents.length : 0
+    );
     const body = e && e.postData && e.postData.contents ? JSON.parse(e.postData.contents) : {};
     return handleRequest(body);
   } catch (error) {
@@ -279,6 +285,7 @@ function handleRequest(body) {
   try {
     const action = body.action;
     if (!action) return responseError('Action wajib diisi');
+    Logger.log('Warungku handleRequest action=%s', action);
     ensureSheets();
     if (ADMIN_ACTIONS.indexOf(action) !== -1) {
       const adminCheck = assertAdmin(body.adminId);
@@ -289,7 +296,7 @@ function handleRequest(body) {
       changePassword,
       getCategories, addCategory, updateCategory, deleteCategory,
       getProducts, getProductById, addProduct, updateProduct, deleteProduct,
-      updateStock, getLowStockProducts, searchProducts, uploadProductImage, getAllDebts,
+      updateStock, getLowStockProducts, searchProducts, uploadProductImage, testDriveAccess, testUploadSmallImage, getAllDebts,
       getDebtsByUser, getDebtDetail, addDebt, addDebtPayment, markDebtAsPaid,
       getDebtPaymentsByUser, getDebtPaymentsByDebt, getAdminDashboard,
       getUserDashboard, getStockLogs, addStockLog,
@@ -601,23 +608,142 @@ function searchProducts(body) {
 }
 
 function uploadProductImage(body) {
-  if (!body.base64Data) return responseError('Data gambar wajib dikirim');
-  const fileName = body.fileName || ('produk_' + generateId('IMG') + '.jpg');
-  const mimeType = body.mimeType || 'image/jpeg';
-  const bytes = Utilities.base64Decode(body.base64Data);
-  const blob = Utilities.newBlob(bytes, mimeType, fileName);
-  const folder = getOrCreateDriveFolder_('Warungku Product Images');
-  const file = folder.createFile(blob);
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  const fileId = file.getId();
-  const imageUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1000';
-  return responseSuccess('Gambar berhasil diupload', { fileId, imageUrl });
+  try {
+    Logger.log('Warungku uploadProductImage masuk');
+    if (typeof body === 'undefined' || body === null) {
+      return responseError('uploadProductImage harus dipanggil lewat aplikasi/API dengan payload gambar. Untuk test dari editor, jalankan testUploadSmallImage.');
+    }
+    let base64Data = String(body.base64Data || '').trim();
+    if (base64Data.indexOf(',') !== -1 && base64Data.indexOf('base64') !== -1) {
+      base64Data = base64Data.split(',').pop();
+    }
+    if (!base64Data) return responseError('Data gambar kosong. Pilih gambar produk terlebih dahulu.');
+
+    const mimeType = String(body.mimeType || 'image/jpeg').toLowerCase();
+    const rawFileName = String(body.fileName || '');
+    Logger.log(
+      'Warungku uploadProductImage payload fileName=%s mimeType=%s base64Length=%s estimatedBytes=%s',
+      rawFileName || '(auto)',
+      mimeType,
+      base64Data.length,
+      Math.ceil((base64Data.length * 3) / 4)
+    );
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (allowedMimeTypes.indexOf(mimeType) === -1) {
+      return responseError('Format gambar tidak didukung: ' + mimeType + '. Gunakan JPG, PNG, atau WEBP.');
+    }
+
+    const maxBytes = 5 * 1024 * 1024;
+    const estimatedBytes = Math.ceil((base64Data.length * 3) / 4);
+    if (estimatedBytes > maxBytes) {
+      return responseError('Ukuran gambar terlalu besar. Maksimal 5 MB setelah kompresi.');
+    }
+
+    let bytes;
+    try {
+      bytes = Utilities.base64Decode(base64Data);
+    } catch (decodeError) {
+      return responseError('Data gambar tidak valid: ' + (decodeError.message || decodeError));
+    }
+
+    if (!bytes || bytes.length === 0) return responseError('Data gambar tidak valid atau kosong.');
+    if (bytes.length > maxBytes) return responseError('Ukuran gambar terlalu besar. Maksimal 5 MB.');
+
+    const extension = mimeType === 'image/png' ? '.png' : mimeType === 'image/webp' ? '.webp' : '.jpg';
+    const cleanName = sanitizeFileName_(body.fileName || ('produk_' + generateId('IMG') + extension));
+    const fileName = cleanName.indexOf('.') === -1 ? cleanName + extension : cleanName;
+    const blob = Utilities.newBlob(bytes, mimeType === 'image/jpg' ? 'image/jpeg' : mimeType, fileName);
+    const folder = getOrCreateDriveFolder_('Warungku Product Images');
+    Logger.log('Warungku uploadProductImage folderId=%s', folder.getId());
+    const file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    const fileId = file.getId();
+    const imageUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1000';
+    Logger.log('Warungku uploadProductImage success fileId=%s imageUrl=%s', fileId, imageUrl);
+    return responseSuccess('Gambar berhasil diupload', { fileId, imageUrl, folderId: folder.getId() });
+  } catch (error) {
+    Logger.log('Warungku uploadProductImage error=%s', error && error.stack ? error.stack : error);
+    return responseError('Upload gambar gagal: ' + getDriveErrorMessage_(error));
+  }
+}
+
+function testDriveAccess() {
+  try {
+    Logger.log('Warungku testDriveAccess masuk');
+    const folder = getOrCreateDriveFolder_('Warungku Product Images');
+    Logger.log('Warungku testDriveAccess success folderId=%s', folder.getId());
+    return responseSuccess('Akses Google Drive berhasil. Folder siap dipakai.', {
+      folderId: folder.getId(),
+      folderName: folder.getName(),
+    });
+  } catch (error) {
+    return responseError('Akses Google Drive gagal: ' + getDriveErrorMessage_(error));
+  }
+}
+
+function testUploadSmallImage(body) {
+  Logger.log('Warungku testUploadSmallImage masuk');
+  const calledFromEditor = typeof body === 'undefined';
+  body = body || {};
+
+  let adminId = body.adminId || '';
+  if (!adminId) {
+    try {
+      const admins = getRowsAsObjects('users').filter(user =>
+        String(user.role) === 'admin' && activeOnly(user)
+      );
+      adminId = admins.length ? admins[0].id : '';
+    } catch (error) {
+      Logger.log('Warungku testUploadSmallImage gagal ambil admin default: %s', error);
+    }
+  }
+  Logger.log('Warungku testUploadSmallImage adminId=%s', adminId || '(kosong)');
+
+  const payload = {
+    action: 'uploadProductImage',
+    adminId,
+    fileName: 'test-warungku-upload.png',
+    mimeType: 'image/png',
+    base64Data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII='
+  };
+
+  const result = uploadProductImage(payload);
+  const content = result.getContent();
+  Logger.log('Warungku testUploadSmallImage result: %s', content);
+  return calledFromEditor ? content : result;
 }
 
 function getOrCreateDriveFolder_(name) {
-  const folders = DriveApp.getFoldersByName(name);
-  if (folders.hasNext()) return folders.next();
-  return DriveApp.createFolder(name);
+  try {
+    const folders = DriveApp.getFoldersByName(name);
+    if (folders.hasNext()) {
+      const existing = folders.next();
+      Logger.log('Warungku Drive folder ditemukan name=%s id=%s', name, existing.getId());
+      return existing;
+    }
+    const folder = DriveApp.createFolder(name);
+    folder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    Logger.log('Warungku Drive folder dibuat name=%s id=%s', name, folder.getId());
+    return folder;
+  } catch (error) {
+    Logger.log('Warungku Drive folder error=%s', error && error.stack ? error.stack : error);
+    throw new Error('Tidak bisa membuat/membuka folder Drive "' + name + '": ' + getDriveErrorMessage_(error));
+  }
+}
+
+function sanitizeFileName_(value) {
+  return String(value || 'produk.jpg')
+    .replace(/[\\/:*?"<>|#%{}~&]/g, '_')
+    .replace(/\s+/g, '_')
+    .substring(0, 120);
+}
+
+function getDriveErrorMessage_(error) {
+  const message = error && error.message ? error.message : String(error);
+  if (message.indexOf('Authorization') !== -1 || message.indexOf('permission') !== -1) {
+    return message + '. Berikan izin Google Drive pada Apps Script lalu redeploy Web App.';
+  }
+  return message;
 }
 
 function getAllDebts() {

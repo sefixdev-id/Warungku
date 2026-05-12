@@ -27,10 +27,12 @@ class UserHomeScreen extends StatefulWidget {
     super.key,
     required this.user,
     required this.onOpenTab,
+    required this.onOpenCategory,
   });
 
   final UserModel user;
   final ValueChanged<int> onOpenTab;
+  final ValueChanged<String> onOpenCategory;
 
   @override
   State<UserHomeScreen> createState() => _UserHomeScreenState();
@@ -219,6 +221,7 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
                         return CategoryCard(
                           label: category.name,
                           icon: _categoryIcon(category.name),
+                          onTap: () => widget.onOpenCategory(category.name),
                         );
                       },
                     );

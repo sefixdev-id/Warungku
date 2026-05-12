@@ -35,6 +35,7 @@ class ProductDetailScreen extends StatelessWidget {
                 imageUrl: product.imageUrl,
                 height: 260,
                 width: double.infinity,
+                fit: BoxFit.contain,
                 fallbackIcon: _categoryIcon(product.categoryName),
                 borderRadius: BorderRadius.circular(22),
               ),

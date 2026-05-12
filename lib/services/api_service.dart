@@ -14,11 +14,14 @@ class ApiService {
   Future<ApiResponse<dynamic>> post({
     required String action,
     Map<String, dynamic>? body,
+    bool forceJsonPost = false,
   }) async {
     try {
       final requestBody = jsonEncode({'action': action, ...?body});
       final uri = Uri.parse(AppConstants.googleAppsScriptUrl);
-      final response = kIsWeb
+      final response = forceJsonPost
+          ? await _postJson(uri, requestBody)
+          : kIsWeb
           ? await _requestForWeb(uri, requestBody)
           : await _postWithRedirects(uri, requestBody);
 
@@ -42,14 +45,38 @@ class ApiService {
     } catch (error) {
       return ApiResponse(
         success: false,
-        message: 'Gagal terhubung ke server: $error',
+        message: 'Gagal terhubung ke server: ${_safeErrorMessage(error)}',
       );
     }
+  }
+
+  String _safeErrorMessage(Object error) {
+    var message = error.toString();
+    message = message.replaceAll(
+      RegExp(r'payload=[^,\s)]+', caseSensitive: false),
+      'payload=<disembunyikan>',
+    );
+    message = message.replaceAll(
+      RegExp(r'base64Data[^,\s)]+', caseSensitive: false),
+      'base64Data=<disembunyikan>',
+    );
+    if (message.length > 260) {
+      message = '${message.substring(0, 260)}...';
+    }
+    return message;
   }
 
   Future<http.Response> _requestForWeb(Uri uri, String body) {
     return _client.get(
       uri.replace(queryParameters: {...uri.queryParameters, 'payload': body}),
+    );
+  }
+
+  Future<http.Response> _postJson(Uri uri, String body) {
+    return _client.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: body,
     );
   }
 

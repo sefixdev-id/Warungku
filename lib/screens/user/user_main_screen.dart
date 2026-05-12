@@ -18,6 +18,7 @@ class UserMainScreen extends StatefulWidget {
 
 class _UserMainScreenState extends State<UserMainScreen> {
   int _index = 0;
+  String? _productCategoryName;
 
   @override
   Widget build(BuildContext context) {
@@ -25,8 +26,15 @@ class _UserMainScreenState extends State<UserMainScreen> {
       UserHomeScreen(
         user: widget.user,
         onOpenTab: (index) => setState(() => _index = index),
+        onOpenCategory: (categoryName) => setState(() {
+          _productCategoryName = categoryName;
+          _index = 1;
+        }),
       ),
-      ProductListScreen(user: widget.user),
+      ProductListScreen(
+        user: widget.user,
+        initialCategoryName: _productCategoryName,
+      ),
       MyDebtScreen(user: widget.user),
       ChatAdminScreen(user: widget.user),
       UserProfileScreen(user: widget.user),

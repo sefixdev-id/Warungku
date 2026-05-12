@@ -33,16 +33,18 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   final _buyPrice = TextEditingController();
   final _sellPrice = TextEditingController();
   final _stock = TextEditingController();
-  final _imageUrl = TextEditingController();
   final _barcode = TextEditingController();
   final _lowStock = TextEditingController();
   late final ProductService _productService;
   late final CategoryService _categoryService;
   late String _unit;
+  String _uploadedImageUrl = '';
+  Uint8List? _selectedImageBytes;
+  String? _selectedImageFileName;
+  String? _selectedImageMimeType;
 
   var _categories = <CategoryModel>[];
   CategoryModel? _selectedCategory;
-  XFile? _pickedImage;
   bool _loadingCategories = false;
   bool _saving = false;
   String? _categoryError;
@@ -68,7 +70,7 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
       _buyPrice.text = p.buyPrice.toString();
       _sellPrice.text = p.sellPrice.toString();
       _stock.text = p.stock.toString();
-      _imageUrl.text = p.imageUrl;
+      _uploadedImageUrl = p.imageUrl;
       _barcode.text = p.barcode;
       _lowStock.text = p.lowStockLimit.toString();
     }
@@ -86,7 +88,6 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     _buyPrice.dispose();
     _sellPrice.dispose();
     _stock.dispose();
-    _imageUrl.dispose();
     _barcode.dispose();
     _lowStock.dispose();
     super.dispose();
@@ -127,11 +128,18 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
   Future<void> _pickImage() async {
     final image = await ImagePicker().pickImage(
       source: ImageSource.gallery,
-      imageQuality: 82,
-      maxWidth: 1400,
+      imageQuality: 80,
+      maxWidth: 1000,
+      maxHeight: 1000,
     );
     if (image == null) return;
-    setState(() => _pickedImage = image);
+    final bytes = await image.readAsBytes();
+    if (!mounted) return;
+    setState(() {
+      _selectedImageBytes = Uint8List.fromList(bytes);
+      _selectedImageFileName = _shortFileName(image.name);
+      _selectedImageMimeType = _detectMimeType(image);
+    });
   }
 
   Future<void> _save() async {
@@ -141,22 +149,23 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     }
 
     setState(() => _saving = true);
-    var finalImageUrl = _imageUrl.text.trim();
-    if (_pickedImage != null) {
-      final bytes = await _pickedImage!.readAsBytes();
-      final uploadedUrl = await _productService.uploadProductImage(
-        adminId: widget.admin.id,
-        fileName: _pickedImage!.name,
-        mimeType: _pickedImage!.mimeType ?? 'image/jpeg',
-        bytes: bytes,
-      );
-      if (uploadedUrl == null) {
+    var finalImageUrl = _uploadedImageUrl.trim();
+    if (_selectedImageBytes != null) {
+      try {
+        final uploadedUrl = await _productService.uploadProductImage(
+          adminId: widget.admin.id,
+          fileName: _selectedImageFileName ?? 'produk.jpg',
+          mimeType: _selectedImageMimeType ?? 'image/jpeg',
+          bytes: _selectedImageBytes!,
+        );
+        finalImageUrl = uploadedUrl;
+        _uploadedImageUrl = uploadedUrl;
+      } catch (error) {
         if (!mounted) return;
         setState(() => _saving = false);
-        _show('Upload gambar gagal');
+        _show(_cleanErrorMessage(error));
         return;
       }
-      finalImageUrl = uploadedUrl;
     }
 
     final message = await _productService.saveProduct(
@@ -186,6 +195,36 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  String _detectMimeType(XFile file) {
+    final mimeType = file.mimeType?.toLowerCase();
+    if (mimeType != null && mimeType.startsWith('image/')) return mimeType;
+    final name = file.name.toLowerCase();
+    if (name.endsWith('.png')) return 'image/png';
+    if (name.endsWith('.webp')) return 'image/webp';
+    if (name.endsWith('.jpg') || name.endsWith('.jpeg')) return 'image/jpeg';
+    return 'image/jpeg';
+  }
+
+  String _cleanErrorMessage(Object error) {
+    final message = error.toString().replaceFirst('Exception: ', '').trim();
+    if (message.isEmpty) return 'Upload gambar gagal';
+    if (message.contains('base64Data') ||
+        message.contains('payload=') ||
+        message.length > 240) {
+      return 'Upload gambar gagal. Cek izin Apps Script/Google Drive, ukuran gambar, lalu coba lagi.';
+    }
+    return message;
+  }
+
+  String _shortFileName(String value) {
+    final name = value.split(RegExp(r'[\\/]')).last.trim();
+    if (name.isEmpty) return 'produk.jpg';
+    if (name.length <= 42) return name;
+    final dot = name.lastIndexOf('.');
+    final extension = dot > 0 ? name.substring(dot) : '';
+    return '${name.substring(0, 34)}...$extension';
   }
 
   @override
@@ -254,7 +293,35 @@ class _AddEditProductScreenState extends State<AddEditProductScreen> {
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
           ),
           const SizedBox(height: 12),
-          _ImagePreview(imageUrl: _imageUrl.text, image: _pickedImage),
+          _ImagePreview(
+            imageUrl: _uploadedImageUrl,
+            imageBytes: _selectedImageBytes,
+          ),
+          if (_selectedImageFileName != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(
+                  Icons.check_circle_outline,
+                  color: AppColors.success,
+                  size: 17,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _selectedImageFileName!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.muted,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
           OutlinedButton.icon(
             onPressed: _pickImage,
@@ -495,39 +562,29 @@ class _DisabledField extends StatelessWidget {
 }
 
 class _ImagePreview extends StatelessWidget {
-  const _ImagePreview({required this.imageUrl, required this.image});
+  const _ImagePreview({required this.imageUrl, required this.imageBytes});
 
   final String imageUrl;
-  final XFile? image;
+  final Uint8List? imageBytes;
 
   @override
   Widget build(BuildContext context) {
-    if (image != null) {
-      return FutureBuilder<List<int>>(
-        future: image!.readAsBytes(),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const SizedBox(
-              height: 180,
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(18),
-            child: Image.memory(
-              Uint8List.fromList(snapshot.data!),
-              height: 180,
-              width: double.infinity,
-              fit: BoxFit.cover,
-            ),
-          );
-        },
+    if (imageBytes != null) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          height: 180,
+          width: double.infinity,
+          color: AppColors.lightBlue,
+          child: Image.memory(imageBytes!, fit: BoxFit.contain),
+        ),
       );
     }
     return UniversalNetworkImage(
       imageUrl: imageUrl,
       height: 180,
       width: double.infinity,
+      fit: BoxFit.contain,
       fallbackIcon: Icons.add_photo_alternate_outlined,
     );
   }

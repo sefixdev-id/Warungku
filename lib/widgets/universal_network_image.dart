@@ -26,27 +26,32 @@ class UniversalNetworkImage extends StatelessWidget {
     final normalized = normalizeImageUrl(imageUrl);
     final child = normalized.isEmpty
         ? _Placeholder(width: width, height: height, icon: fallbackIcon)
-        : Image.network(
-            normalized,
+        : Container(
             width: width,
             height: height,
-            fit: fit,
-            loadingBuilder: (context, child, progress) {
-              if (progress == null) return child;
-              return _Placeholder(
-                width: width,
-                height: height,
-                icon: fallbackIcon,
-                loading: true,
-              );
-            },
-            errorBuilder: (context, error, stackTrace) {
-              return _Placeholder(
-                width: width,
-                height: height,
-                icon: fallbackIcon,
-              );
-            },
+            color: AppColors.lightBlue,
+            child: Image.network(
+              normalized,
+              width: width,
+              height: height,
+              fit: fit,
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return _Placeholder(
+                  width: width,
+                  height: height,
+                  icon: fallbackIcon,
+                  loading: true,
+                );
+              },
+              errorBuilder: (context, error, stackTrace) {
+                return _Placeholder(
+                  width: width,
+                  height: height,
+                  icon: fallbackIcon,
+                );
+              },
+            ),
           );
 
     return ClipRRect(

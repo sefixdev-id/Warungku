@@ -14,9 +14,14 @@ import 'product_detail_screen.dart';
 enum _ProductSort { bestSeller, newest, priceLow, priceHigh }
 
 class ProductListScreen extends StatefulWidget {
-  const ProductListScreen({super.key, required this.user});
+  const ProductListScreen({
+    super.key,
+    required this.user,
+    this.initialCategoryName,
+  });
 
   final UserModel user;
+  final String? initialCategoryName;
 
   @override
   State<ProductListScreen> createState() => _ProductListScreenState();
@@ -29,6 +34,24 @@ class _ProductListScreenState extends State<ProductListScreen> {
   String _categoryName = 'Semua';
   _ProductSort _sort = _ProductSort.newest;
   bool _ascending = false;
+  bool _isLoadingProducts = false;
+  bool _isLoadingCategories = false;
+  String? _productError;
+  String? _categoryError;
+  List<ProductModel> _products = [];
+  List<String> _categoryNames = _defaultCategoryNames;
+
+  static const List<String> _defaultCategoryNames = [
+    'Semua',
+    'Snack',
+    'Roti',
+    'BBM',
+    'Sembako',
+    'Rokok',
+    'Obat',
+    'Voucher',
+    'Peralatan',
+  ];
 
   @override
   void initState() {
@@ -36,6 +59,19 @@ class _ProductListScreenState extends State<ProductListScreen> {
     final api = ApiService();
     _productService = ProductService(api);
     _categoryService = CategoryService(api);
+    _categoryName = _normalizeInitialCategory(widget.initialCategoryName);
+    _loadInitialData();
+  }
+
+  @override
+  void didUpdateWidget(covariant ProductListScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialCategoryName != oldWidget.initialCategoryName &&
+        widget.initialCategoryName != null) {
+      setState(() {
+        _categoryName = _normalizeInitialCategory(widget.initialCategoryName);
+      });
+    }
   }
 
   @override
@@ -92,42 +128,115 @@ class _ProductListScreenState extends State<ProductListScreen> {
               ],
             ),
           ),
-          Expanded(
-            child: FutureBuilder<List<ProductModel>>(
-              future: _productService.getProducts(),
-              builder: (context, snapshot) {
-                final products = _applyFilters(snapshot.data ?? []);
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (products.isEmpty) {
-                  return const EmptyStateWidget(
-                    message: 'Produk belum tersedia',
-                  );
-                }
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  itemCount: products.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final product = products[index];
-                    return ProductCard(
-                      product: product,
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ProductDetailScreen(
-                            user: widget.user,
-                            product: product,
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
+          Expanded(child: _buildProductList()),
         ],
+      ),
+    );
+  }
+
+  Future<void> _loadInitialData() async {
+    setState(() {
+      _isLoadingProducts = true;
+      _isLoadingCategories = true;
+      _productError = null;
+      _categoryError = null;
+    });
+
+    await Future.wait([_loadProducts(), _loadCategories()]);
+  }
+
+  Future<void> _loadProducts() async {
+    try {
+      final products = await _productService.getProducts();
+      if (!mounted) return;
+      setState(() {
+        _products = products;
+        _productError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _productError = error.toString());
+    } finally {
+      if (mounted) setState(() => _isLoadingProducts = false);
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final categories = await _categoryService.getCategories();
+      final names = [
+        'Semua',
+        ...categories
+            .map((item) => item.name.trim())
+            .where((name) => name.isNotEmpty),
+      ];
+      if (!mounted) return;
+      setState(() {
+        _categoryNames = names.toSet().toList();
+        _categoryError = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _categoryNames = _defaultCategoryNames;
+        _categoryError = error.toString();
+      });
+    } finally {
+      if (mounted) setState(() => _isLoadingCategories = false);
+    }
+  }
+
+  Widget _buildProductList() {
+    if (_isLoadingProducts && _products.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_productError != null && _products.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const EmptyStateWidget(message: 'Produk gagal dimuat'),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _loadProducts,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Coba lagi'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final products = _applyFilters(_products);
+    if (products.isEmpty) {
+      return const EmptyStateWidget(message: 'Produk belum tersedia');
+    }
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 180),
+      child: ListView.separated(
+        key: ValueKey(
+          '${_categoryName}_${_sort}_${_ascending}_${_search.text}',
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        itemCount: products.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 10),
+        itemBuilder: (context, index) {
+          final product = products[index];
+          return ProductCard(
+            product: product,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) =>
+                    ProductDetailScreen(user: widget.user, product: product),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -146,31 +255,21 @@ class _ProductListScreenState extends State<ProductListScreen> {
     }).toList();
 
     int compare(ProductModel a, ProductModel b) {
-      return switch (_sort) {
+      final result = switch (_sort) {
         _ProductSort.priceLow => a.sellPrice.compareTo(b.sellPrice),
         _ProductSort.priceHigh => b.sellPrice.compareTo(a.sellPrice),
-        _ => a.name.compareTo(b.name),
+        _ProductSort.bestSeller => a.name.compareTo(b.name),
+        _ProductSort.newest =>
+          products.indexOf(a).compareTo(products.indexOf(b)),
       };
+      return _ascending ? result : -result;
     }
 
     filtered.sort(compare);
-    if (_ascending && _sort == _ProductSort.priceHigh) {
-      return filtered.reversed.toList();
-    }
-    if (!_ascending && _sort == _ProductSort.priceLow) {
-      return filtered.reversed.toList();
-    }
-    if (_ascending &&
-        (_sort == _ProductSort.newest || _sort == _ProductSort.bestSeller)) {
-      return filtered.reversed.toList();
-    }
     return filtered;
   }
 
   Future<void> _showCategorySheet() async {
-    final categories = await _categoryService.getCategories();
-    if (!mounted) return;
-    final names = ['Semua', ...categories.map((item) => item.name)];
     final selected = await showModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
@@ -178,7 +277,29 @@ class _ProductListScreenState extends State<ProductListScreen> {
         child: ListView(
           shrinkWrap: true,
           children: [
-            for (final name in names)
+            if (_isLoadingCategories)
+              const ListTile(
+                leading: SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                title: Text('Memuat kategori...'),
+              ),
+            if (_categoryError != null)
+              ListTile(
+                leading: const Icon(
+                  Icons.info_outline_rounded,
+                  color: AppColors.warning,
+                ),
+                title: const Text('Memakai kategori default'),
+                subtitle: const Text('Ketuk untuk coba muat ulang kategori'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _loadCategories();
+                },
+              ),
+            for (final name in _categoryNames)
               ListTile(
                 leading: Icon(
                   name == _categoryName
@@ -231,4 +352,10 @@ class _ProductListScreenState extends State<ProductListScreen> {
     _ProductSort.priceLow => 'Harga Terendah',
     _ProductSort.priceHigh => 'Harga Tertinggi',
   };
+
+  String _normalizeInitialCategory(String? value) {
+    final category = value?.trim();
+    if (category == null || category.isEmpty) return 'Semua';
+    return category;
+  }
 }

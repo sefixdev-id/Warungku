@@ -1,5 +1,8 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
+
+import '../core/constants/app_constants.dart';
 import '../models/product_model.dart';
 import 'api_service.dart';
 
@@ -50,14 +53,18 @@ class ProductService {
     return response.message;
   }
 
-  Future<String?> uploadProductImage({
+  Future<String> uploadProductImage({
     required String adminId,
     required String fileName,
     required String mimeType,
     required List<int> bytes,
   }) async {
+    debugPrint(
+      'Warungku uploadProductImage URL: ${AppConstants.googleAppsScriptUrl}',
+    );
     final response = await _apiService.post(
       action: 'uploadProductImage',
+      forceJsonPost: true,
       body: {
         'adminId': adminId,
         'fileName': fileName,
@@ -65,9 +72,42 @@ class ProductService {
         'base64Data': base64Encode(bytes),
       },
     );
-    if (!response.success || response.data == null) return null;
+    if (!response.success) {
+      throw Exception(
+        response.message.isEmpty
+            ? 'Upload gambar gagal tanpa detail dari server'
+            : response.message,
+      );
+    }
+    if (response.data == null) {
+      throw Exception(
+        'Upload gambar berhasil tetapi URL gambar tidak dikirim server',
+      );
+    }
     final data = Map<String, dynamic>.from(response.data);
-    return data['imageUrl']?.toString();
+    final imageUrl = data['imageUrl']?.toString() ?? '';
+    if (imageUrl.isEmpty) {
+      throw Exception('Upload gambar berhasil tetapi imageUrl kosong');
+    }
+    return imageUrl;
+  }
+
+  Future<String> testDriveAccess(String adminId) async {
+    final response = await _apiService.post(
+      action: 'testDriveAccess',
+      body: {'adminId': adminId},
+      forceJsonPost: true,
+    );
+    return response.message;
+  }
+
+  Future<String> testUploadSmallImage(String adminId) async {
+    final response = await _apiService.post(
+      action: 'testUploadSmallImage',
+      body: {'adminId': adminId},
+      forceJsonPost: true,
+    );
+    return response.message;
   }
 
   Future<String> updateStock({
