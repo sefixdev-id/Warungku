@@ -9,9 +9,11 @@ import '../../widgets/app_card.dart';
 import '../../widgets/empty_state_widget.dart';
 
 class DebtPaymentHistoryScreen extends StatelessWidget {
-  const DebtPaymentHistoryScreen({super.key, required this.debtId});
+  const DebtPaymentHistoryScreen({super.key, this.debtId, this.userId})
+    : assert(debtId != null || userId != null);
 
-  final String debtId;
+  final String? debtId;
+  final String? userId;
 
   @override
   Widget build(BuildContext context) {
@@ -19,7 +21,9 @@ class DebtPaymentHistoryScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Riwayat Pembayaran')),
       body: FutureBuilder<List<DebtPaymentModel>>(
-        future: service.getPaymentsByDebt(debtId),
+        future: userId == null
+            ? service.getPaymentsByDebt(debtId!)
+            : service.getPaymentsByUser(userId!),
         builder: (context, snapshot) {
           final payments = snapshot.data ?? [];
           if (payments.isEmpty) {

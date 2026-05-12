@@ -6,10 +6,15 @@ import '../../models/user_model.dart';
 import '../../screens/auth/login_screen.dart';
 import '../../services/api_service.dart';
 import '../../services/dashboard_service.dart';
+import '../../services/debt_service.dart';
 import '../../services/local_session_service.dart';
+import '../../services/product_service.dart';
+import '../../services/turnover_service.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/dashboard_metric_card.dart';
 import '../../widgets/warungku_logo.dart';
+import 'admin_debt_list_screen.dart';
+import 'admin_turnover_detail_screen.dart';
 import 'low_stock_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
@@ -19,7 +24,12 @@ class AdminDashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final service = DashboardService(ApiService());
+    final api = ApiService();
+    final service = DashboardService(api);
+    final turnoverService = TurnoverService(
+      debtService: DebtService(api),
+      productService: ProductService(api),
+    );
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 16,
@@ -52,10 +62,12 @@ class AdminDashboardScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: FutureBuilder<Map<String, dynamic>>(
-        future: service.getAdminDashboard(admin.id),
+      body: FutureBuilder<_DashboardBundle>(
+        future: _loadDashboard(service, turnoverService),
         builder: (context, snapshot) {
-          final data = snapshot.data ?? {};
+          final bundle = snapshot.data ?? _DashboardBundle.empty();
+          final data = bundle.dashboard;
+          final todayStats = bundle.todayStats;
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
             children: [
@@ -78,7 +90,15 @@ class AdminDashboardScreen extends StatelessWidget {
                     label: 'Pelanggan Berhutang',
                     value: '${data['debtUserCount'] ?? 0}',
                     icon: Icons.people_outline,
-                    caption: '+3 pelanggan baru',
+                    caption: 'Lihat aktif',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => AdminDebtListScreen(
+                          admin: admin,
+                          initialFilter: 'aktif',
+                        ),
+                      ),
+                    ),
                   ),
                   DashboardMetricCard(
                     label: 'Stok Menipis',
@@ -86,13 +106,30 @@ class AdminDashboardScreen extends StatelessWidget {
                     icon: Icons.warning_amber_outlined,
                     accentColor: AppColors.warning,
                     caption: 'Lihat detail',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => LowStockScreen(admin: admin),
+                      ),
+                    ),
                   ),
                   DashboardMetricCard(
                     label: 'Perputaran Hari Ini',
-                    value: formatRupiah(data['paidAmount'] ?? 0),
+                    value: formatRupiah(todayStats.totalTurnover),
                     icon: Icons.trending_up_rounded,
                     accentColor: AppColors.success,
-                    caption: '+8% dari kemarin',
+                    caption: 'Dari hutang hari ini',
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => AdminTurnoverDetailScreen(admin: admin),
+                      ),
+                    ),
+                  ),
+                  DashboardMetricCard(
+                    label: 'Keuntungan Hari Ini',
+                    value: formatRupiah(todayStats.totalProfit),
+                    icon: Icons.savings_outlined,
+                    accentColor: AppColors.success,
+                    caption: 'Estimasi modal',
                   ),
                 ],
               ),
@@ -154,6 +191,20 @@ class AdminDashboardScreen extends StatelessWidget {
     );
   }
 
+  Future<_DashboardBundle> _loadDashboard(
+    DashboardService dashboardService,
+    TurnoverService turnoverService,
+  ) async {
+    final results = await Future.wait([
+      dashboardService.getAdminDashboard(admin.id),
+      turnoverService.getStats(adminId: admin.id, period: TurnoverPeriod.today),
+    ]);
+    return _DashboardBundle(
+      dashboard: results[0] as Map<String, dynamic>,
+      todayStats: results[1] as TurnoverStats,
+    );
+  }
+
   Future<void> _confirmLogout(BuildContext context) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -180,6 +231,24 @@ class AdminDashboardScreen extends StatelessWidget {
       (_) => false,
     );
   }
+}
+
+class _DashboardBundle {
+  const _DashboardBundle({required this.dashboard, required this.todayStats});
+
+  final Map<String, dynamic> dashboard;
+  final TurnoverStats todayStats;
+
+  factory _DashboardBundle.empty() => const _DashboardBundle(
+    dashboard: {},
+    todayStats: TurnoverStats(
+      period: TurnoverPeriod.today,
+      totalTurnover: 0,
+      totalProfit: 0,
+      totalQty: 0,
+      items: [],
+    ),
+  );
 }
 
 class _MiniBarChart extends StatelessWidget {

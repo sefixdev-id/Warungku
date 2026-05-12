@@ -9,6 +9,7 @@ import '../../widgets/app_card.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/universal_network_image.dart';
 import 'chat_admin_screen.dart';
+import 'order_checkout_screen.dart';
 
 class ProductDetailScreen extends StatelessWidget {
   const ProductDetailScreen({
@@ -268,10 +269,12 @@ class ProductDetailScreen extends StatelessWidget {
                     icon: Icons.check_circle_outline,
                     onPressed: () {
                       Navigator.of(sheetContext).pop();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Saya ingin beli ${product.name} sebanyak $qty ${product.unit}. Apakah stok tersedia?',
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => OrderCheckoutScreen(
+                            user: user,
+                            product: product,
+                            qty: qty,
                           ),
                         ),
                       );

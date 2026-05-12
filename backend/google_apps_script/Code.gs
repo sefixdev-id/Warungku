@@ -126,13 +126,67 @@ const TABLES = {
       createdAt: 'dibuat_pada',
     },
   },
+  user_addresses: {
+    sheet: 'user_addresses',
+    headers: ['id', 'id_pengguna', 'label_alamat', 'nama_penerima', 'no_hp', 'alamat_lengkap', 'catatan', 'alamat_utama', 'dibuat_pada', 'diperbarui_pada', 'aktif'],
+    map: {
+      id: 'id',
+      userId: 'id_pengguna',
+      labelAddress: 'label_alamat',
+      recipientName: 'nama_penerima',
+      phone: 'no_hp',
+      fullAddress: 'alamat_lengkap',
+      note: 'catatan',
+      isPrimary: 'alamat_utama',
+      createdAt: 'dibuat_pada',
+      updatedAt: 'diperbarui_pada',
+      isActive: 'aktif',
+    },
+  },
+  orders: {
+    sheet: 'orders',
+    headers: ['id', 'id_pengguna', 'nama_pengguna', 'no_hp_pengguna', 'tipe_order', 'id_alamat', 'snapshot_alamat', 'metode_pembayaran', 'status_pembayaran', 'status_order', 'total', 'catatan', 'dibuat_pada', 'diperbarui_pada', 'dikonfirmasi_oleh_admin_id'],
+    map: {
+      id: 'id',
+      userId: 'id_pengguna',
+      userName: 'nama_pengguna',
+      userPhone: 'no_hp_pengguna',
+      orderType: 'tipe_order',
+      addressId: 'id_alamat',
+      addressSnapshot: 'snapshot_alamat',
+      paymentMethod: 'metode_pembayaran',
+      paymentStatus: 'status_pembayaran',
+      orderStatus: 'status_order',
+      totalAmount: 'total',
+      note: 'catatan',
+      createdAt: 'dibuat_pada',
+      updatedAt: 'diperbarui_pada',
+      confirmedByAdminId: 'dikonfirmasi_oleh_admin_id',
+    },
+  },
+  order_items: {
+    sheet: 'order_items',
+    headers: ['id', 'id_order', 'id_produk', 'nama_produk', 'harga', 'jumlah', 'satuan', 'subtotal', 'dibuat_pada'],
+    map: {
+      id: 'id',
+      orderId: 'id_order',
+      productId: 'id_produk',
+      productName: 'nama_produk',
+      price: 'harga',
+      qty: 'jumlah',
+      unit: 'satuan',
+      subtotal: 'subtotal',
+      createdAt: 'dibuat_pada',
+    },
+  },
 };
 
 const ADMIN_ACTIONS = [
   'getAllUsers', 'updateUserStatus', 'addCategory', 'updateCategory', 'deleteCategory',
   'addProduct', 'updateProduct', 'deleteProduct', 'updateStock', 'getAllDebts',
   'addDebt', 'addDebtPayment', 'markDebtAsPaid', 'getAdminDashboard', 'getStockLogs',
-  'addStockLog', 'getLowStockProducts',
+  'addStockLog', 'getLowStockProducts', 'uploadProductImage',
+  'getAllOrdersForAdmin', 'updateOrderStatus', 'updateOrderPaymentStatus',
 ];
 
 function setupDatabase() {
@@ -235,10 +289,13 @@ function handleRequest(body) {
       changePassword,
       getCategories, addCategory, updateCategory, deleteCategory,
       getProducts, getProductById, addProduct, updateProduct, deleteProduct,
-      updateStock, getLowStockProducts, searchProducts, getAllDebts,
+      updateStock, getLowStockProducts, searchProducts, uploadProductImage, getAllDebts,
       getDebtsByUser, getDebtDetail, addDebt, addDebtPayment, markDebtAsPaid,
       getDebtPaymentsByUser, getDebtPaymentsByDebt, getAdminDashboard,
       getUserDashboard, getStockLogs, addStockLog,
+      getUserAddresses, addUserAddress, updateUserAddress, deleteUserAddress,
+      createOrder, getOrdersByUser, getAllOrdersForAdmin, getOrderDetail,
+      updateOrderStatus, updateOrderPaymentStatus,
     };
     if (!handlers[action]) return responseError('Action tidak dikenal: ' + action);
     return handlers[action](body);
@@ -543,6 +600,26 @@ function searchProducts(body) {
   return responseSuccess('Hasil pencarian produk', products);
 }
 
+function uploadProductImage(body) {
+  if (!body.base64Data) return responseError('Data gambar wajib dikirim');
+  const fileName = body.fileName || ('produk_' + generateId('IMG') + '.jpg');
+  const mimeType = body.mimeType || 'image/jpeg';
+  const bytes = Utilities.base64Decode(body.base64Data);
+  const blob = Utilities.newBlob(bytes, mimeType, fileName);
+  const folder = getOrCreateDriveFolder_('Warungku Product Images');
+  const file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  const fileId = file.getId();
+  const imageUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w1000';
+  return responseSuccess('Gambar berhasil diupload', { fileId, imageUrl });
+}
+
+function getOrCreateDriveFolder_(name) {
+  const folders = DriveApp.getFoldersByName(name);
+  if (folders.hasNext()) return folders.next();
+  return DriveApp.createFolder(name);
+}
+
 function getAllDebts() {
   return responseSuccess('Data hutang berhasil diambil', getRowsAsObjects('debts'));
 }
@@ -721,4 +798,194 @@ function addStockLogInternal(productId, productName, type, qty, beforeStock, aft
     createdAt: nowIso(),
     createdByAdminId: adminId || '',
   });
+}
+
+function getUserAddresses(body) {
+  const userId = body.userId;
+  if (!userId) return responseError('userId wajib diisi');
+  const addresses = getRowsAsObjects('user_addresses')
+    .filter(row => String(row.userId) === String(userId) && activeOnly(row));
+  return responseSuccess('Alamat user berhasil diambil', addresses);
+}
+
+function addUserAddress(body) {
+  const userId = body.userId;
+  const user = findRowById('users', userId);
+  if (!user || String(user.role) !== 'user') return responseError('User tidak ditemukan');
+  const activeAddresses = getRowsAsObjects('user_addresses')
+    .filter(row => String(row.userId) === String(userId) && activeOnly(row));
+  if (activeAddresses.length >= 3) return responseError('Maksimal 3 alamat tersimpan.');
+  if (!body.labelAddress || !body.recipientName || !body.phone || !body.fullAddress) {
+    return responseError('Label, penerima, no HP, dan alamat wajib diisi');
+  }
+  if (body.isPrimary) clearPrimaryAddresses_(userId);
+  const address = {
+    id: generateId('ADR'),
+    userId,
+    labelAddress: body.labelAddress,
+    recipientName: body.recipientName,
+    phone: body.phone,
+    fullAddress: body.fullAddress,
+    note: body.note || '',
+    isPrimary: !!body.isPrimary || activeAddresses.length === 0,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    isActive: true,
+  };
+  appendObject('user_addresses', address);
+  return responseSuccess('Alamat berhasil ditambahkan', address);
+}
+
+function updateUserAddress(body) {
+  const userId = body.userId;
+  const address = findRowById('user_addresses', body.addressId || body.id);
+  if (!address || String(address.userId) !== String(userId) || !activeOnly(address)) {
+    return responseError('Alamat tidak ditemukan');
+  }
+  if (body.isPrimary) clearPrimaryAddresses_(userId);
+  updateObject('user_addresses', address._rowNumber, {
+    labelAddress: body.labelAddress,
+    recipientName: body.recipientName,
+    phone: body.phone,
+    fullAddress: body.fullAddress,
+    note: body.note || '',
+    isPrimary: !!body.isPrimary,
+    updatedAt: nowIso(),
+  });
+  return responseSuccess('Alamat berhasil diperbarui');
+}
+
+function deleteUserAddress(body) {
+  const userId = body.userId;
+  const address = findRowById('user_addresses', body.addressId || body.id);
+  if (!address || String(address.userId) !== String(userId)) return responseError('Alamat tidak ditemukan');
+  updateObject('user_addresses', address._rowNumber, { isActive: false, updatedAt: nowIso() });
+  return responseSuccess('Alamat berhasil dihapus');
+}
+
+function clearPrimaryAddresses_(userId) {
+  getRowsAsObjects('user_addresses')
+    .filter(row => String(row.userId) === String(userId) && activeOnly(row))
+    .forEach(row => updateObject('user_addresses', row._rowNumber, { isPrimary: false, updatedAt: nowIso() }));
+}
+
+function createOrder(body) {
+  const user = findRowById('users', body.userId);
+  if (!user || String(user.role) !== 'user' || !activeOnly(user)) return responseError('User tidak ditemukan');
+  const product = findRowById('products', body.productId);
+  if (!product || !activeOnly(product)) return responseError('Produk tidak ditemukan');
+  const qty = Number(body.qty || 0);
+  if (qty <= 0) return responseError('Qty tidak valid');
+  if (Number(product.stock || 0) < qty) return responseError('Stok produk tidak cukup');
+  const orderType = body.orderType === 'delivery' ? 'delivery' : 'pickup';
+  let addressId = '';
+  let addressSnapshot = '';
+  if (orderType === 'delivery') {
+    const address = findRowById('user_addresses', body.addressId);
+    if (!address || String(address.userId) !== String(user.id) || !activeOnly(address)) {
+      return responseError('Alamat pengantaran wajib dipilih');
+    }
+    addressId = address.id;
+    addressSnapshot = address.labelAddress + '\n' + address.recipientName + ' - ' + address.phone + '\n' + address.fullAddress + (address.note ? '\n' + address.note : '');
+  }
+  const paymentMethod = ['cod', 'cash_store', 'qris', 'ewallet'].indexOf(body.paymentMethod) !== -1 ? body.paymentMethod : 'cash_store';
+  if (paymentMethod === 'qris' || paymentMethod === 'ewallet') return responseError('Metode pembayaran belum tersedia');
+  const subtotal = Number(product.sellPrice || 0) * qty;
+  const order = {
+    id: generateId('ORD'),
+    userId: user.id,
+    userName: user.name,
+    userPhone: user.phone,
+    orderType,
+    addressId,
+    addressSnapshot,
+    paymentMethod,
+    paymentStatus: 'belum_dibayar',
+    orderStatus: 'diterima',
+    totalAmount: subtotal,
+    note: body.note || '',
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    confirmedByAdminId: '',
+  };
+  appendObject('orders', order);
+  appendObject('order_items', {
+    id: generateId('ORI'),
+    orderId: order.id,
+    productId: product.id,
+    productName: product.name,
+    price: Number(product.sellPrice || 0),
+    qty,
+    unit: product.unit,
+    subtotal,
+    createdAt: nowIso(),
+  });
+  return responseSuccess('Pesanan berhasil dibuat', withOrderItems_(order));
+}
+
+function getOrdersByUser(body) {
+  const userId = body.userId;
+  const orders = getRowsAsObjects('orders')
+    .filter(row => String(row.userId) === String(userId))
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .map(withOrderItems_);
+  return responseSuccess('Pesanan user berhasil diambil', orders);
+}
+
+function getAllOrdersForAdmin() {
+  const orders = getRowsAsObjects('orders')
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .map(withOrderItems_);
+  return responseSuccess('Semua pesanan berhasil diambil', orders);
+}
+
+function getOrderDetail(body) {
+  const order = findRowById('orders', body.orderId || body.id);
+  if (!order) return responseError('Order tidak ditemukan');
+  if (body.userId && String(order.userId) !== String(body.userId)) return responseError('User tidak boleh melihat order ini');
+  return responseSuccess('Detail order berhasil diambil', withOrderItems_(order));
+}
+
+function updateOrderStatus(body) {
+  const order = findRowById('orders', body.orderId || body.id);
+  if (!order) return responseError('Order tidak ditemukan');
+  const status = body.orderStatus;
+  if (['diterima', 'diproses', 'dikirim', 'selesai', 'dibatalkan'].indexOf(status) === -1) {
+    return responseError('Status order tidak valid');
+  }
+  if (String(order.orderStatus) === 'diterima' && status === 'diproses') {
+    const items = getRowsAsObjects('order_items').filter(item => String(item.orderId) === String(order.id));
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const product = findRowById('products', item.productId);
+      if (!product) return responseError('Produk order tidak ditemukan: ' + item.productName);
+      if (Number(product.stock || 0) < Number(item.qty || 0)) return responseError('Stok tidak cukup untuk ' + item.productName);
+    }
+    items.forEach(item => {
+      const product = findRowById('products', item.productId);
+      const beforeStock = Number(product.stock || 0);
+      const afterStock = beforeStock - Number(item.qty || 0);
+      updateObject('products', product._rowNumber, { stock: afterStock, updatedAt: nowIso() });
+      addStockLogInternal(product.id, product.name, 'keluar', Number(item.qty || 0), beforeStock, afterStock, 'Order ' + order.id, body.adminId);
+    });
+  }
+  updateObject('orders', order._rowNumber, { orderStatus: status, updatedAt: nowIso(), confirmedByAdminId: body.adminId || order.confirmedByAdminId });
+  return responseSuccess('Status order berhasil diperbarui');
+}
+
+function updateOrderPaymentStatus(body) {
+  const order = findRowById('orders', body.orderId || body.id);
+  if (!order) return responseError('Order tidak ditemukan');
+  const status = body.paymentStatus;
+  if (['belum_dibayar', 'menunggu_konfirmasi', 'dibayar', 'dibatalkan'].indexOf(status) === -1) {
+    return responseError('Status pembayaran tidak valid');
+  }
+  updateObject('orders', order._rowNumber, { paymentStatus: status, updatedAt: nowIso(), confirmedByAdminId: body.adminId || order.confirmedByAdminId });
+  return responseSuccess('Status pembayaran berhasil diperbarui');
+}
+
+function withOrderItems_(order) {
+  const copy = Object.assign({}, order);
+  copy.items = getRowsAsObjects('order_items').filter(item => String(item.orderId) === String(order.id));
+  return copy;
 }

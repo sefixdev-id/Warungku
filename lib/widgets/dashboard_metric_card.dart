@@ -12,6 +12,7 @@ class DashboardMetricCard extends StatelessWidget {
     this.accentColor = AppColors.primary,
     this.caption,
     this.highlight = false,
+    this.onTap,
   });
 
   final String label;
@@ -20,6 +21,7 @@ class DashboardMetricCard extends StatelessWidget {
   final Color accentColor;
   final String? caption;
   final bool highlight;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -82,28 +84,53 @@ class DashboardMetricCard extends StatelessWidget {
       ],
     );
 
-    if (!highlight) {
-      return AppCard(padding: const EdgeInsets.all(14), child: content);
-    }
+    final card = !highlight
+        ? AppCard(padding: const EdgeInsets.all(14), child: content)
+        : Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: const LinearGradient(
+                colors: [AppColors.primary, AppColors.secondary],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x332563EB),
+                  blurRadius: 22,
+                  offset: Offset(0, 10),
+                ),
+              ],
+            ),
+            child: content,
+          );
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
+    if (onTap == null) return card;
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        gradient: const LinearGradient(
-          colors: [AppColors.primary, AppColors.secondary],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        onTap: onTap,
+        child: Stack(
+          children: [
+            Positioned.fill(child: card),
+            Positioned(
+              right: 10,
+              bottom: 10,
+              child: Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: highlight
+                    ? Colors.white.withValues(alpha: 0.85)
+                    : accentColor,
+              ),
+            ),
+          ],
         ),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x332563EB),
-            blurRadius: 22,
-            offset: Offset(0, 10),
-          ),
-        ],
       ),
-      child: content,
     );
   }
 }

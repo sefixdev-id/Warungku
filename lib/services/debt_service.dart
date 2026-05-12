@@ -1,5 +1,6 @@
 import '../models/debt_model.dart';
 import '../models/debt_payment_model.dart';
+import '../models/api_response.dart';
 import 'api_service.dart';
 
 class DebtService {
@@ -34,6 +35,16 @@ class DebtService {
     return DebtModel.fromJson(Map<String, dynamic>.from(response.data));
   }
 
+  Future<List<DebtModel>> getDebtDetailsByUser(String userId) async {
+    final debts = await getDebtsByUser(userId);
+    final details = await Future.wait(
+      debts.map((debt) => getDebtDetail(debt.id, userId: userId)),
+    );
+    final result = details.whereType<DebtModel>().toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return result;
+  }
+
   Future<String> addDebt({
     required String adminId,
     required String userId,
@@ -58,6 +69,21 @@ class DebtService {
     required num amount,
     String note = '',
   }) async {
+    final response = await addPaymentResult(
+      adminId: adminId,
+      debtId: debtId,
+      amount: amount,
+      note: note,
+    );
+    return response.message;
+  }
+
+  Future<ApiResponse<dynamic>> addPaymentResult({
+    required String adminId,
+    required String debtId,
+    required num amount,
+    String note = '',
+  }) async {
     final response = await _apiService.post(
       action: 'addDebtPayment',
       body: {
@@ -67,7 +93,7 @@ class DebtService {
         'note': note,
       },
     );
-    return response.message;
+    return response;
   }
 
   Future<List<DebtPaymentModel>> getPaymentsByDebt(String debtId) async {
@@ -82,6 +108,24 @@ class DebtService {
           (item) => DebtPaymentModel.fromJson(Map<String, dynamic>.from(item)),
         )
         .toList();
+  }
+
+  Future<List<DebtPaymentModel>> getPaymentsByUser(String userId) async {
+    final response = await _apiService.post(
+      action: 'getDebtPaymentsByUser',
+      body: {'userId': userId},
+    );
+    if (!response.success) return [];
+    final payments =
+        (response.data as List? ?? [])
+            .whereType<Map>()
+            .map(
+              (item) =>
+                  DebtPaymentModel.fromJson(Map<String, dynamic>.from(item)),
+            )
+            .toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return payments;
   }
 
   List<DebtModel> _parseDebts(dynamic data) {

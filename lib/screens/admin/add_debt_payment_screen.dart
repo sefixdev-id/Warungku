@@ -34,19 +34,34 @@ class _AddDebtPaymentScreenState extends State<AddDebtPaymentScreen> {
   }
 
   Future<void> _save() async {
+    final amount = num.tryParse(_amount.text) ?? 0;
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Nominal pembayaran harus lebih dari 0')),
+      );
+      return;
+    }
+
     setState(() => _saving = true);
-    final message = await _service.addPayment(
+    final response = await _service.addPaymentResult(
       adminId: widget.admin.id,
       debtId: widget.debt.id,
-      amount: num.tryParse(_amount.text) ?? 0,
+      amount: amount,
       note: _note.text.trim(),
     );
     if (!mounted) return;
     setState(() => _saving = false);
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-    Navigator.of(context).pop();
+    ).showSnackBar(SnackBar(content: Text(response.message)));
+    if (response.success) {
+      Navigator.of(context).pop({
+        'updated': true,
+        'debtId': widget.debt.id,
+        'amount': amount,
+        'data': response.data,
+      });
+    }
   }
 
   @override

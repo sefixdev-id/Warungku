@@ -4,6 +4,7 @@ import '../../models/user_model.dart';
 import 'admin_chat_list_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_debt_list_screen.dart';
+import 'admin_orders_screen.dart';
 import 'admin_product_screen.dart';
 import 'admin_profile_screen.dart';
 
@@ -25,6 +26,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
       AdminDashboardScreen(admin: widget.user),
       AdminProductScreen(admin: widget.user),
       AdminDebtListScreen(admin: widget.user),
+      AdminOrdersScreen(admin: widget.user),
       AdminChatListScreen(admin: widget.user),
       AdminProfileScreen(
         admin: widget.user,
@@ -51,6 +53,11 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             icon: Icon(Icons.receipt_long_outlined),
             selectedIcon: Icon(Icons.receipt_long),
             label: 'Hutang',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.shopping_bag_outlined),
+            selectedIcon: Icon(Icons.shopping_bag),
+            label: 'Order',
           ),
           NavigationDestination(
             icon: Icon(Icons.forum_outlined),

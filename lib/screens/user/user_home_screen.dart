@@ -18,6 +18,8 @@ import '../../widgets/warungku_logo.dart';
 import '../auth/login_screen.dart';
 import '../../services/local_session_service.dart';
 import 'change_password_screen.dart';
+import 'my_orders_screen.dart';
+import 'user_address_screen.dart';
 import 'warung_address_screen.dart';
 
 class UserHomeScreen extends StatefulWidget {
@@ -280,88 +282,132 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      isScrollControlled: true,
       builder: (context) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ProfileMenuTile(
-                  icon: Icons.person_outline,
-                  title: 'Profil Saya',
-                  subtitle: widget.user.name,
-                  onTap: () {
-                    Navigator.pop(context);
-                    widget.onOpenTab(4);
-                  },
+          child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 8,
+              bottom: MediaQuery.viewInsetsOf(context).bottom + 18,
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ProfileMenuTile(
+                      icon: Icons.person_outline,
+                      title: 'Profil Saya',
+                      subtitle: widget.user.name,
+                      onTap: () {
+                        Navigator.pop(context);
+                        widget.onOpenTab(4);
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    ProfileMenuTile(
+                      icon: Icons.shopping_bag_outlined,
+                      title: 'Pesanan Saya',
+                      subtitle: 'Lihat status pesanan',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => MyOrdersScreen(user: widget.user),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    ProfileMenuTile(
+                      icon: Icons.location_on_outlined,
+                      title: 'Alamat Saya',
+                      subtitle: 'Maksimal 3 alamat tersimpan',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                UserAddressScreen(user: widget.user),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    ProfileMenuTile(
+                      icon: Icons.place_outlined,
+                      title: 'Alamat Warungku',
+                      subtitle: 'Jam buka dan kontak warung',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const WarungAddressScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    ProfileMenuTile(
+                      icon: Icons.receipt_long_outlined,
+                      title: 'Hutang Saya',
+                      subtitle: 'Lihat ringkasan dan detail hutang',
+                      onTap: () {
+                        Navigator.pop(context);
+                        widget.onOpenTab(2);
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    ProfileMenuTile(
+                      icon: Icons.chat_bubble_outline,
+                      title: 'Chat Admin',
+                      subtitle: 'Tanya stok dan informasi warung',
+                      onTap: () {
+                        Navigator.pop(context);
+                        widget.onOpenTab(3);
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    ProfileMenuTile(
+                      icon: Icons.lock_reset_outlined,
+                      title: 'Ganti Password',
+                      subtitle: 'Ubah password akun',
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                ChangePasswordScreen(userId: widget.user.id),
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    ProfileMenuTile(
+                      icon: Icons.logout,
+                      title: 'Logout',
+                      subtitle: 'Keluar dari akun',
+                      danger: true,
+                      onTap: () async {
+                        Navigator.pop(context);
+                        await LocalSessionService().clear();
+                        if (!mounted) return;
+                        Navigator.of(this.context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => const LoginScreen(),
+                          ),
+                          (_) => false,
+                        );
+                      },
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 10),
-                ProfileMenuTile(
-                  icon: Icons.place_outlined,
-                  title: 'Alamat Warungku',
-                  subtitle: 'Jam buka dan kontak warung',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const WarungAddressScreen(),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 10),
-                ProfileMenuTile(
-                  icon: Icons.receipt_long_outlined,
-                  title: 'Hutang Saya',
-                  subtitle: 'Lihat ringkasan dan detail hutang',
-                  onTap: () {
-                    Navigator.pop(context);
-                    widget.onOpenTab(2);
-                  },
-                ),
-                const SizedBox(height: 10),
-                ProfileMenuTile(
-                  icon: Icons.chat_bubble_outline,
-                  title: 'Chat Admin',
-                  subtitle: 'Tanya stok dan informasi warung',
-                  onTap: () {
-                    Navigator.pop(context);
-                    widget.onOpenTab(3);
-                  },
-                ),
-                const SizedBox(height: 10),
-                ProfileMenuTile(
-                  icon: Icons.lock_reset_outlined,
-                  title: 'Ganti Password',
-                  subtitle: 'Ubah password akun',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            ChangePasswordScreen(userId: widget.user.id),
-                      ),
-                    );
-                  },
-                ),
-                const SizedBox(height: 10),
-                ProfileMenuTile(
-                  icon: Icons.logout,
-                  title: 'Logout',
-                  subtitle: 'Keluar dari akun',
-                  danger: true,
-                  onTap: () async {
-                    Navigator.pop(context);
-                    await LocalSessionService().clear();
-                    if (!mounted) return;
-                    Navigator.of(this.context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const LoginScreen()),
-                      (_) => false,
-                    );
-                  },
-                ),
-              ],
+              ),
             ),
           ),
         );

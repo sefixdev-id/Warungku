@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../models/product_model.dart';
 import 'api_service.dart';
 
@@ -46,6 +48,26 @@ class ProductService {
       body: {'adminId': adminId, ...product},
     );
     return response.message;
+  }
+
+  Future<String?> uploadProductImage({
+    required String adminId,
+    required String fileName,
+    required String mimeType,
+    required List<int> bytes,
+  }) async {
+    final response = await _apiService.post(
+      action: 'uploadProductImage',
+      body: {
+        'adminId': adminId,
+        'fileName': fileName,
+        'mimeType': mimeType,
+        'base64Data': base64Encode(bytes),
+      },
+    );
+    if (!response.success || response.data == null) return null;
+    final data = Map<String, dynamic>.from(response.data);
+    return data['imageUrl']?.toString();
   }
 
   Future<String> updateStock({
