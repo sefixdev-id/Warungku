@@ -9,6 +9,7 @@ import '../../services/dashboard_service.dart';
 import '../../services/local_session_service.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/dashboard_metric_card.dart';
+import '../../widgets/warungku_logo.dart';
 import 'low_stock_screen.dart';
 
 class AdminDashboardScreen extends StatelessWidget {
@@ -21,9 +22,20 @@ class AdminDashboardScreen extends StatelessWidget {
     final service = DashboardService(ApiService());
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Dashboard Admin',
-          style: TextStyle(fontWeight: FontWeight.w900),
+        titleSpacing: 16,
+        title: Row(
+          children: const [
+            WarungkuLogo(size: 38),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Dashboard Admin',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+          ],
         ),
         actions: [
           IconButton(
@@ -45,7 +57,7 @@ class AdminDashboardScreen extends StatelessWidget {
         builder: (context, snapshot) {
           final data = snapshot.data ?? {};
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
             children: [
               GridView.count(
                 shrinkWrap: true,
@@ -53,7 +65,7 @@ class AdminDashboardScreen extends StatelessWidget {
                 crossAxisCount: 2,
                 crossAxisSpacing: 12,
                 mainAxisSpacing: 12,
-                childAspectRatio: 1.38,
+                childAspectRatio: 1.18,
                 children: [
                   DashboardMetricCard(
                     label: 'Total Hutang',

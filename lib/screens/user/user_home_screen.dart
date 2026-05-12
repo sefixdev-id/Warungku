@@ -14,6 +14,7 @@ import '../../widgets/app_search_field.dart';
 import '../../widgets/category_card.dart';
 import '../../widgets/profile_menu_tile.dart';
 import '../../widgets/product_card.dart';
+import '../../widgets/warungku_logo.dart';
 import '../auth/login_screen.dart';
 import '../../services/local_session_service.dart';
 import 'change_password_screen.dart';
@@ -56,9 +57,13 @@ class _UserHomeScreenState extends State<UserHomeScreen> {
           onPressed: _showQuickMenu,
           icon: const Icon(Icons.menu),
         ),
-        title: const Text(
-          'Beranda',
-          style: TextStyle(fontWeight: FontWeight.w900),
+        titleSpacing: 0,
+        title: Row(
+          children: const [
+            WarungkuLogo(size: 34),
+            SizedBox(width: 10),
+            Text('Beranda', style: TextStyle(fontWeight: FontWeight.w900)),
+          ],
         ),
         actions: [
           IconButton(

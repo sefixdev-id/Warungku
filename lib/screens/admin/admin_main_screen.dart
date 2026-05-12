@@ -5,7 +5,7 @@ import 'admin_chat_list_screen.dart';
 import 'admin_dashboard_screen.dart';
 import 'admin_debt_list_screen.dart';
 import 'admin_product_screen.dart';
-import 'user_management_screen.dart';
+import 'admin_profile_screen.dart';
 
 class AdminMainScreen extends StatefulWidget {
   const AdminMainScreen({super.key, required this.user});
@@ -26,7 +26,10 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
       AdminProductScreen(admin: widget.user),
       AdminDebtListScreen(admin: widget.user),
       AdminChatListScreen(admin: widget.user),
-      UserManagementScreen(admin: widget.user),
+      AdminProfileScreen(
+        admin: widget.user,
+        onOpenTab: (index) => setState(() => _index = index),
+      ),
     ];
     return Scaffold(
       body: pages[_index],
@@ -55,9 +58,9 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             label: 'Chat',
           ),
           NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people),
-            label: 'User',
+            icon: Icon(Icons.account_circle_outlined),
+            selectedIcon: Icon(Icons.account_circle),
+            label: 'Akun',
           ),
         ],
       ),

@@ -25,56 +25,56 @@ class DashboardMetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          children: [
-            Container(
-              width: 34,
-              height: 34,
-              decoration: BoxDecoration(
-                color: highlight
-                    ? Colors.white.withValues(alpha: 0.18)
-                    : accentColor.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                icon,
-                color: highlight ? Colors.white : accentColor,
-                size: 18,
-              ),
-            ),
-            const Spacer(),
-          ],
-        ),
-        const Spacer(),
-        Text(
-          label,
-          style: TextStyle(
-            color: highlight ? Colors.white70 : AppColors.muted,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: highlight
+                ? Colors.white.withValues(alpha: 0.18)
+                : accentColor.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(
+            icon,
+            color: highlight ? Colors.white : accentColor,
+            size: 17,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: highlight ? Colors.white70 : AppColors.muted,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 5),
         Text(
           value,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: highlight ? Colors.white : AppColors.text,
-            fontSize: 18,
+            fontSize: 17,
             fontWeight: FontWeight.w900,
           ),
         ),
         if (caption != null) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 5),
           Text(
             caption!,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: highlight
                   ? Colors.white.withValues(alpha: 0.78)
                   : accentColor,
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -83,12 +83,11 @@ class DashboardMetricCard extends StatelessWidget {
     );
 
     if (!highlight) {
-      return AppCard(child: SizedBox(height: 118, child: content));
+      return AppCard(padding: const EdgeInsets.all(14), child: content);
     }
 
     return Container(
-      padding: const EdgeInsets.all(16),
-      height: 118,
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
         gradient: const LinearGradient(
